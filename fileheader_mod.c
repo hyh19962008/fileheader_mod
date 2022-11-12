@@ -6,7 +6,9 @@
 #include <math.h>
 
 #define TYPE_LEN 4
-#define VERSION "ver 1.0"
+#define AVI_HEAD 0x41564920
+#define RESTORE_FILE "restore.avi"
+#define VERSION "ver 1.1"
 
 union w {
 	int a;
@@ -18,8 +20,8 @@ a tool to modify/restore file-type value in file header\n\
 \n\
 	--encrypt <filename> <value> modify file-type with the given 4-Bytes \n\
                                      hex value, save the original value to\n\
-                                     restore.bin\n\
-	--decrypt <filename> restore file-type from restore.bin\n\
+                                     " RESTORE_FILE "\n\
+	--decrypt <filename> restore file-type from " RESTORE_FILE "\n\
 	--help show this message\n\
 "
 VERSION
@@ -54,6 +56,7 @@ uint32_t le2be(uint32_t v) {
 int main(int argc, char **argv) {
 	uint32_t original_value;
 	uint32_t value;
+	uint32_t avi_head = AVI_HEAD;
 	FILE *input;
 	FILE *restore;
 	size_t len;
@@ -79,8 +82,10 @@ int main(int argc, char **argv) {
 			else if(value <= 0xffffff)
 				value *= pow(16, 2*1);	
 
-			if(is_little_endian())
+			if(is_little_endian()) {
 				value = le2be(value);
+				avi_head = le2be(avi_head);
+			}
 			
 			// print wrote bytes
 			printf("Wrote: ");
@@ -93,17 +98,18 @@ int main(int argc, char **argv) {
 			}
 			printf("\n");
 
-			restore = fopen("restore.bin", "wb");
+			restore = fopen(RESTORE_FILE, "wb");
 			if(input == NULL) {
-				printf("Unable to create file restore.bin.\n");
+				printf("Unable to create file " RESTORE_FILE ".\n");
 				fclose(input);
 				exit(1);
 			}
 
 			fread(buff, 1, 4, input);
+			len = fwrite(&avi_head, 1, 4, restore);		// write avi_head first
 			len = fwrite(&buff, 1, 4, restore);
 			if(len < 1) {
-				printf("Failed to write to file restore.bin, disk space might be low.\n");
+				printf("Failed to write to file " RESTORE_FILE ", disk space might be low.\n");
 				fclose(input);
 				fclose(restore);
 				exit(1);
@@ -124,14 +130,15 @@ int main(int argc, char **argv) {
 				exit(1);
 			}
 
-			restore = fopen("restore.bin", "rb");
+			restore = fopen(RESTORE_FILE, "rb");
 			if(input == NULL) {
-				printf("Unable to create file restore.bin.\n");
+				printf("Unable to create file " RESTORE_FILE ".\n");
 				fclose(input);
 				exit(1);
 			}
 
 			// restore value to input
+			fread(buff, 1, 4, restore);		// skip avi_head
 			fread(buff, 1, 4, restore);
 			fwrite(buff, 1, 4, input);
 			fclose(restore);
